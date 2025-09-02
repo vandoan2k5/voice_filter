@@ -437,7 +437,7 @@ class LayerNormalization4DCF(nn.Module):
 if __name__ == "__main__":
     import toml
 
-    configs = toml.load('/data/haofengyuan/Speech_extraction/Github/X-TF-GridNet/configs/train_config.toml')
+    configs = toml.load('configs/train_config.toml')
     gpuids = tuple(configs['gpu']['gpu_ids'])
     device = torch.device("cuda:{}".format(gpuids[0]))
 
