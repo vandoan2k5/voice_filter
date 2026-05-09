@@ -2,8 +2,8 @@
 # configuration yaml files
 config/*
 !config/default.yaml
-
-
+.libri_data/
+.tmp/
 temp/
 chkpt/
 logs/

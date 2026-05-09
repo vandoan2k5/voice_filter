@@ -19,8 +19,8 @@ run_with_lock(){
     )&
 }
 
-N=32 # set "N" as your CPU core number.
+N=4 # set "N" as your CPU core number.
 open_sem $N
 for f in $(find . -name "*.flac"); do
-    run_with_lock ffmpeg-normalize "$f" -ar 16000 -o "${f%.*}-norm.wav"
+    run_with_lock /kaggle/voicefilter/.venv/bin/python3 -m ffmpeg_normalize "$f" -ar 16000 -o "${f%.*}-norm.wav"
 done

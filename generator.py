@@ -108,9 +108,10 @@ if __name__ == '__main__':
 
     if args.libri_dir is not None:
         train_folders = [x for x in glob.glob(os.path.join(args.libri_dir, 'train-clean-100', '*'))
-                            if os.path.isdir(x)] + \
-                        [x for x in glob.glob(os.path.join(args.libri_dir, 'train-clean-360', '*'))
-                            if os.path.isdir(x)]
+                            if os.path.isdir(x)] 
+        # + \
+        #                 [x for x in glob.glob(os.path.join(args.libri_dir, 'train-clean-360', '*'))
+        #                     if os.path.isdir(x)]
                         # we recommned to exclude train-other-500
                         # See https://github.com/mindslab-ai/voicefilter/issues/5#issuecomment-497746793
                         # + \
