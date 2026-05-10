@@ -2328,7 +2328,7 @@ wheels = [
 ]
 
 [[package]]
-name = "voicefilter"
+name = "voice-filter"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [

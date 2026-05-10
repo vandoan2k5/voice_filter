@@ -5,9 +5,14 @@ import librosa
 from torch.utils.data import Dataset, DataLoader
 
 from utils.audio import Audio
+from datasets.online_dataset import create_online_dataloader
 
 
 def create_dataloader(hp, args, train):
+    raw_dirs = hp.data.raw_train_dirs if train else hp.data.raw_test_dirs
+    if raw_dirs:
+        return create_online_dataloader(hp, args, train)
+
     def train_collate_fn(batch):
         dvec_list = list()
         target_mag_list = list()

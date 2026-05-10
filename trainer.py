@@ -15,8 +15,8 @@ if __name__ == '__main__':
                         help="Root directory of run.")
     parser.add_argument('-c', '--config', type=str, required=True,
                         help="yaml file for configuration")
-    parser.add_argument('-e', '--embedder_path', type=str, required=True,
-                        help="path of embedder model pt file")
+    parser.add_argument('-e', '--embedder_path', type=str, default=None,
+                        help="path of embedder model pt file (omit to use SpeechBrain ECAPA-TDNN)")
     parser.add_argument('--checkpoint_path', type=str, default=None,
                         help="path of checkpoint pt file")
     parser.add_argument('-m', '--model', type=str, required=True,
@@ -47,8 +47,10 @@ if __name__ == '__main__':
     )
     logger = logging.getLogger()
 
-    if hp.data.train_dir == '' or hp.data.test_dir == '':
-        logger.error("train_dir, test_dir cannot be empty.")
+    has_online_data = bool(getattr(hp.data, 'raw_train_dirs', []))
+    has_preprocessed_data = bool(hp.data.train_dir and hp.data.test_dir)
+    if not has_online_data and not has_preprocessed_data:
+        logger.error("No data source configured. Set raw_train_dirs/raw_test_dirs or train_dir/test_dir.")
         raise Exception("Please specify directories of data in %s" % args.config)
 
     writer = MyWriter(hp, log_dir)

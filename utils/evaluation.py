@@ -1,22 +1,28 @@
 import torch
+import numpy as np
 import torch.nn as nn
 from mir_eval.separation import bss_eval_sources
 
 
-def validate(audio, model, embedder, testloader, writer, step):
+def validate(audio, model, dvec_fn, testloader, writer, step):
     model.eval()
     
     criterion = nn.MSELoss()
+    test_loss = 0.0
+    sdr = 0.0
     with torch.no_grad():
         for batch in testloader:
-            dvec_mel, target_wav, mixed_wav, target_mag, mixed_mag, mixed_phase = batch[0]
+            dvec_input, target_wav, mixed_wav, target_mag, mixed_mag, mixed_phase = batch[0]
 
-            dvec_mel = dvec_mel.cuda()
             target_mag = target_mag.unsqueeze(0).cuda()
             mixed_mag = mixed_mag.unsqueeze(0).cuda()
 
-            dvec = embedder(dvec_mel)
-            dvec = dvec.unsqueeze(0)
+            if isinstance(dvec_input, np.ndarray):
+                dvec = dvec_fn([dvec_input])
+            else:
+                dvec = dvec_fn([dvec_input.numpy()]) if hasattr(dvec_input, 'numpy') else dvec_fn([dvec_input])
+            dvec = dvec.detach()
+
             est_mask = model(mixed_mag, dvec)
             est_mag = est_mask * mixed_mag
             test_loss = criterion(target_mag, est_mag).item()
@@ -35,3 +41,4 @@ def validate(audio, model, embedder, testloader, writer, step):
             break
 
     model.train()
+    return test_loss, sdr

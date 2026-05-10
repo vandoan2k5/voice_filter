@@ -12,12 +12,14 @@ def load_hparam_str(hp_str):
 
 
 def load_hparam(filename):
-    stream = open(filename, 'r')
-    docs = yaml.load_all(stream)
-    hparam_dict = dict()
-    for doc in docs:
-        for k, v in doc.items():
-            hparam_dict[k] = v
+    with open(filename, 'r') as stream:
+        docs = yaml.safe_load_all(stream)
+        hparam_dict = dict()
+        for doc in docs:
+            if doc is None:
+                continue
+            for k, v in doc.items():
+                hparam_dict[k] = v
     return hparam_dict
 
 

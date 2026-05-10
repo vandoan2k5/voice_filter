@@ -2,6 +2,7 @@ import os
 import math
 import torch
 import torch.nn as nn
+import numpy as np
 import traceback
 
 from .adabound import AdaBound
@@ -11,12 +12,62 @@ from model.model import VoiceFilter
 from model.embedder import SpeechEmbedder
 
 
-def train(args, pt_dir, chkpt_path, trainloader, testloader, writer, logger, hp, hp_str):
-    # load embedder
-    embedder_pt = torch.load(args.embedder_path)
+def _load_embedder(hp, embedder_path):
+    if embedder_path is None or embedder_path == '' or embedder_path == 'speechbrain':
+        from speechbrain.inference.speaker import EncoderClassifier
+
+        classifier = EncoderClassifier.from_hparams(
+            source="speechbrain/spkrec-ecapa-voxceleb",
+            run_opts={"device": "cuda"},
+        )
+
+        class SpeechBrainWrapper:
+            def __init__(self, clf):
+                self.clf = clf
+
+            def __call__(self, dvec_inputs):
+                wavs_t = [torch.from_numpy(w.astype(np.float32)).cuda() for w in dvec_inputs]
+                wavs_padded = torch.nn.utils.rnn.pad_sequence(wavs_t, batch_first=True)
+                emb = self.clf.encode_batch(wavs_padded)  # [B, N, emb_dim]
+                if emb.dim() == 3:
+                    emb = emb.mean(dim=1)  # [B, emb_dim]
+                emb = torch.nn.functional.normalize(emb, p=2, dim=-1)
+                return emb
+
+        wrapper = SpeechBrainWrapper(classifier)
+        return wrapper, None
+
+    embedder_pt = torch.load(embedder_path)
     embedder = SpeechEmbedder(hp).cuda()
     embedder.load_state_dict(embedder_pt)
     embedder.eval()
+
+    audio = Audio(hp)
+
+    class CustomWrapper:
+        def __init__(self, model, audio_obj):
+            self.model = model
+            self.audio = audio_obj
+
+        def __call__(self, dvec_inputs):
+            dvec_list = list()
+            for inp in dvec_inputs:
+                if isinstance(inp, np.ndarray):
+                    mel = self.audio.get_mel(inp)
+                    mel = torch.from_numpy(mel).float().cuda()
+                else:
+                    mel = inp.cuda()
+                dvec = self.model(mel)
+                dvec_list.append(dvec)
+            return torch.stack(dvec_list, dim=0)
+
+    wrapper = CustomWrapper(embedder, audio)
+    return wrapper, embedder
+
+
+def train(args, pt_dir, chkpt_path, trainloader, testloader, writer, logger, hp, hp_str):
+    embedder_path = getattr(args, 'embedder_path', None)
+    dvec_fn, embedder_ref = _load_embedder(hp, embedder_path)
 
     audio = Audio(hp)
     model = VoiceFilter(hp).cuda()
@@ -39,7 +90,6 @@ def train(args, pt_dir, chkpt_path, trainloader, testloader, writer, logger, hp,
         optimizer.load_state_dict(checkpoint['optimizer'])
         step = checkpoint['step']
 
-        # will use new given hparams.
         if hp_str != checkpoint['hp_str']:
             logger.warning("New hparams is different from checkpoint.")
     else:
@@ -49,23 +99,16 @@ def train(args, pt_dir, chkpt_path, trainloader, testloader, writer, logger, hp,
         criterion = nn.MSELoss()
         while True:
             model.train()
-            for dvec_mels, target_mag, mixed_mag in trainloader:
+            for dvec_inputs, target_mag, mixed_mag in trainloader:
                 target_mag = target_mag.cuda()
                 mixed_mag = mixed_mag.cuda()
 
-                dvec_list = list()
-                for mel in dvec_mels:
-                    mel = mel.cuda()
-                    dvec = embedder(mel)
-                    dvec_list.append(dvec)
-                dvec = torch.stack(dvec_list, dim=0)
+                dvec = dvec_fn(dvec_inputs)
                 dvec = dvec.detach()
 
                 mask = model(mixed_mag, dvec)
                 output = mixed_mag * mask
 
-                # output = torch.pow(torch.clamp(output, min=0.0), hp.audio.power)
-                # target_mag = torch.pow(torch.clamp(target_mag, min=0.0), hp.audio.power)
                 loss = criterion(output, target_mag)
 
                 optimizer.zero_grad()
@@ -78,13 +121,12 @@ def train(args, pt_dir, chkpt_path, trainloader, testloader, writer, logger, hp,
                     logger.error("Loss exploded to %.02f at step %d!" % (loss, step))
                     raise Exception("Loss exploded")
 
-                # write loss to tensorboard
                 if step % hp.train.summary_interval == 0:
                     writer.log_training(loss, step)
-                    logger.info("Wrote summary at step %d" % step)
 
-                # 1. save checkpoint file to resume training
-                # 2. evaluate and save sample to tensorboard
+                if step % 10 == 0:
+                    logger.info("step %d | train_loss %.6f" % (step, loss))
+
                 if step % hp.train.checkpoint_interval == 0:
                     save_path = os.path.join(pt_dir, 'chkpt_%d.pt' % step)
                     torch.save({
@@ -94,7 +136,8 @@ def train(args, pt_dir, chkpt_path, trainloader, testloader, writer, logger, hp,
                         'hp_str': hp_str,
                     }, save_path)
                     logger.info("Saved checkpoint to: %s" % save_path)
-                    validate(audio, model, embedder, testloader, writer, step)
+                    test_loss, sdr = validate(audio, model, dvec_fn, testloader, writer, step)
+                    logger.info("step %d | test_loss %.6f | SDR %.4f dB" % (step, test_loss, sdr))
     except Exception as e:
         logger.info("Exiting due to exception: %s" % e)
         traceback.print_exc()

@@ -17,7 +17,11 @@ model:
 data:
   train_dir: ''
   test_dir: ''
+  raw_train_dirs: []
+  raw_test_dirs: []
   audio_len: 3.0
+  num_train_samples: 100000
+  num_test_samples: 1000
 ---
 form:
   input: '*-norm.wav'
