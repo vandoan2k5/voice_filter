@@ -19,7 +19,7 @@ spk_list = "data/wsj0_2mix_extr_tr.spk"
 ref_dur = "data/uniq_target_ref_dur.txt"
 
 [gpu]
-gpu_ids = [3]
+gpu_ids = [0]
 
 [signal]
 sr = 8000
@@ -65,4 +65,4 @@ activation = "prelu"
 eps = 1e-5
 
 [save]
-save_filename = "exp/pTFGridNet_1.0"
+save_filename = "checkpoints/the-first"

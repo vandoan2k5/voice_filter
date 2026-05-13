@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+
+# Virtual environment
+.venv/
+
+# Checkpoints and experiment outputs
+checkpoints/
+exp/
+
+# Output recordings
+rec/
+assets/rec/
+
+# IDE
+.vscode/
+.idea/
+
+# Data (large audio files)
+LibriSpeech/
+data/

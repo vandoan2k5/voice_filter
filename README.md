@@ -1,5 +1,5 @@
 # X-TF-GridNet: A Time-Frequency Domain Target Speaker Extraction Network with Adaptive Speaker Embedding Fusion
-
+.python-version 3.12
 This project relates to the implementation of X-TF-GridNet, a Target Speaker Extraction Network (TSE) in the time-frequency (T-F) domain, which has been accepted by *Information Fusion*. Our proposed method boasts two key extensions: a U<sup>2</sup>-Net style network adeptly extracts robust fixed speaker embeddings, and an adaptive embedding fusion (AEA) mechanism ensures the effective utilization of target speaker information.
 
 In this project, the primary basis is the original implementation of [SpEx+](https://github.com/gemengtju/SpEx_Plus) and the implementation of [TF-GridNet](https://github.com/espnet/espnet/blob/master/espnet2/enh/separator/tfgridnet_separator.py). Notably, the project only encompasses the traing and inference phase. For specifics on data preparation, please refer to [there](https://github.com/xuchenglin28/speaker_extraction_SpEx). 
@@ -12,11 +12,35 @@ We release the model trained on the WHAMR! dataset, [there](https://github.com/H
 
 ```shell
 # Train the X-TF-GridNet model.
-bash train.sh
+#!/usr/bin/env bash
+
+set -eu
+
+configs_path=configs/train_config.toml
+
+python nnet/train.py --config $configs_path
+
 # Decode the X-TF-GridNet model.
-bash decode.sh
+#!/usr/bin/env bash
+
+set -eu
+
+configs_path=configs/train_config.toml
+data_type=wsj0_2mix
+cpt_dir=exp/pTFGridNet_3.5
+
+python nnet/decode.py --config $configs_path --data_type $data_type --cpt_dir $cpt_dir
+
 # Output score metrics.
-bash evalute.sh
+#!/usr/bin/env bash
+
+set -eu
+
+sep_scp=data/wsj0_2mix/tt/sys.scp
+ref_scp=data/wsj0_2mix/tt/ref.scp
+
+python nnet/evaluate.py --sep_scp $sep_scp --ref_scp $ref_scp
+
 ```
 
 ## Results
