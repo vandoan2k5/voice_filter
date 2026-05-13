@@ -30,7 +30,8 @@ dependencies = [
     "soxr==1.1.0",
     "threadpoolctl==3.6.0",
     "toml==0.10.2",
-    "tqdm==4.67.3"
+    "tqdm==4.67.3",
+    "torchaudio>=2.11.0",
 ]
 [tool.uv.sources]
 speechbrain = { git = "https://github.com/speechbrain/speechbrain.git", tag = "develop" }
