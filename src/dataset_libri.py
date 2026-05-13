@@ -62,6 +62,7 @@ class LibriSpeechDataset:
         self.speakers = [s for s in self.speaker_utts if len(self.speaker_utts[s]) >= 2]
         if not self.speakers:
             raise RuntimeError("No valid speakers found in data_dirs: {}".format(data_dirs))
+        self._total_utts = sum(len(v) for v in self.speaker_utts.values())
 
     def _get_resampler(self, orig_sr):
         return torchaudio.transforms.Resample(orig_freq=orig_sr, new_freq=self.sample_rate)
@@ -76,7 +77,7 @@ class LibriSpeechDataset:
         return data
 
     def __len__(self):
-        return 100000
+        return min(self._total_utts, 5000)
 
     def __getitem__(self, index):
         spk_a = random.choice(self.speakers)

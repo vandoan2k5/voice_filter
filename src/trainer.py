@@ -274,14 +274,11 @@ class Trainer(object):
             stats = dict()
 
             self.save_checkpoint(name=str(self.cur_epoch), best=False)
-            cv = self.eval(dev_loader)
-            best_loss = cv["loss"]
-            self.logger.info("START FROM EPOCH {:d}, LOSS = {:.4f}, METRIC_IMPR = {:.2f}"
-                             .format(self.cur_epoch, best_loss, cv["metric_impr"]))
+            best_loss = float("inf")
             no_impr = 0
-            self.scheduler.best = best_loss
 
-            train_epoch, val_epoch, metric_impr_epoch = [], [cv["loss"]], [cv["metric_impr"]]
+            train_epoch, val_epoch, metric_impr_epoch = [], [], []
+            self.logger.info("START FROM EPOCH {:d}, skipping initial eval".format(self.cur_epoch))
             while self.cur_epoch < num_epochs:
                 self.cur_epoch += 1
                 cur_lr = self.optimizer.param_groups[0]["lr"]

@@ -12,7 +12,7 @@ gpu_ids = [0, 1]
 
 [signal]
 sr = 16000
-chunk_length = 4
+chunk_length = 3
 win_size = 0.032
 win_shift = 0.008
 fft_num = 512
@@ -40,7 +40,7 @@ rel_epsilon = 1e-4
 [dataloader]
 num_workers = 0
 pin_memory = true
-batch_size = 8
+batch_size = 4
 
 [net]
 emb_dim = 64
