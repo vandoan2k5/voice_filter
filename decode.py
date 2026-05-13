@@ -10,7 +10,7 @@ from tqdm import tqdm
 
 from src.audio import WaveReader, write_wav
 from src.utils import get_logger
-from src.model import pTFGridNet
+from model import pTFGridNet
 
 logger = get_logger(__name__)
 

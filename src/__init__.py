@@ -1,4 +1,3 @@
-from .model import pTFGridNet
 from .audio import WaveReader, write_wav, read_wav, Reader
 from .dataset import make_dataloader, Dataset, DataLoader
 from .loss import SISDRLoss

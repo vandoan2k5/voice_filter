@@ -6,7 +6,7 @@ import toml
 from src.dataset import make_dataloader
 from src.trainer import SiSnrTrainer
 from src.utils import dump_json, get_logger
-from src.model import pTFGridNet
+from model import pTFGridNet
 
 logger = get_logger(__name__)
 
