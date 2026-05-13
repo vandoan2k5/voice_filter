@@ -1,5 +1,7 @@
-# X-TF-GridNet: A Time-Frequency Domain Target Speaker Extraction Network with Adaptive Speaker Embedding Fusion
+# Triển khai X-TF-GridNet: A Time-Frequency Domain Target Speaker Extraction Network with Adaptive Speaker Embedding Fusion
+```shell
 .python-version 3.12
+```
 This project relates to the implementation of X-TF-GridNet, a Target Speaker Extraction Network (TSE) in the time-frequency (T-F) domain, which has been accepted by *Information Fusion*. Our proposed method boasts two key extensions: a U<sup>2</sup>-Net style network adeptly extracts robust fixed speaker embeddings, and an adaptive embedding fusion (AEA) mechanism ensures the effective utilization of target speaker information.
 
 In this project, the primary basis is the original implementation of [SpEx+](https://github.com/gemengtju/SpEx_Plus) and the implementation of [TF-GridNet](https://github.com/espnet/espnet/blob/master/espnet2/enh/separator/tfgridnet_separator.py). Notably, the project only encompasses the traing and inference phase. For specifics on data preparation, please refer to [there](https://github.com/xuchenglin28/speaker_extraction_SpEx). 
