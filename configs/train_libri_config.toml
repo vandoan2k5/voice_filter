@@ -1,0 +1,58 @@
+[path]
+resume_filename = ""
+
+[path.train]
+data_dirs = ["LibriSpeech/train-clean-100"]
+
+[path.val]
+data_dirs = ["LibriSpeech/dev-clean"]
+
+[gpu]
+gpu_ids = [0, 1]
+
+[signal]
+sr = 16000
+chunk_length = 4
+win_size = 0.032
+win_shift = 0.008
+fft_num = 512
+beta = 1.0
+
+[loss_function]
+zero_mean = true
+scale_label = true
+
+[optimizer]
+name = "adam"
+lr = 1e-3
+beta1 = 0.9
+beta2 = 0.999
+l2 = 1e-7
+min_lr = 1e-8
+logging_period = 1000
+factor = 0.5
+gradient_norm = 5.0
+epochs = 150
+halve_freq = 2
+early_stop_freq = 6
+rel_epsilon = 1e-4
+
+[dataloader]
+num_workers = 0
+pin_memory = true
+batch_size = 8
+
+[net]
+emb_dim = 64
+emb_ks = 4
+emb_hs = 2
+n_layers = 3
+lstm_hidden_units = 256
+attn_n_head = 4
+attn_approx_qk_dim = 512
+activation = "prelu"
+eps = 1e-5
+
+[save]
+save_filename = "checkpoints/the-first-libri"
+checkpoint_steps = 5000
