@@ -1,3 +1,4 @@
+# SPEECHBRAIN_SILENCE_DEPRECATION_PRETRAINED=1 PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True nohup .venv/bin/python -u train_libri.py > process.log 2>&1 &
 import argparse
 import pprint
 

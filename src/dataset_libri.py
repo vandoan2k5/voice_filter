@@ -180,11 +180,11 @@ class DataLoader:
                                        train=train,
                                        least=chunk_size // 2)
         self.eg_loader = torch.utils.data.DataLoader(dataset,
-                                                      batch_size=batch_size // 2,
-                                                      num_workers=num_workers,
-                                                      shuffle=train,
-                                                      pin_memory=pin_memory,
-                                                      collate_fn=self._collate)
+                                                       batch_size=batch_size,
+                                                       num_workers=num_workers,
+                                                       shuffle=train,
+                                                       pin_memory=pin_memory,
+                                                       collate_fn=self._collate)
 
     def _collate(self, batch):
         chunk = []
@@ -206,12 +206,31 @@ class DataLoader:
         N = len(chunk_list)
         if self.train:
             random.shuffle(chunk_list)
+
         blist = []
-        for s in range(0, N - self.batch_size + 1, self.batch_size):
-            batch = default_collate(self._pad_aux(chunk_list[s:s + self.batch_size]))
+        i = 0
+        while i + self.batch_size <= len(chunk_list):
+            batch = chunk_list[i:i + self.batch_size]
+            aux_lens = [item['aux_len'] for item in batch]
+            min_unique = max(2, len(batch) // 2)
+            if len(set(aux_lens)) < min_unique:
+                for attempt in range(self.batch_size):
+                    if i + self.batch_size >= len(chunk_list):
+                        break
+                    item = chunk_list.pop(i + self.batch_size - 1)
+                    chunk_list.append(item)
+                    batch = chunk_list[i:i + self.batch_size]
+                    aux_lens = [item['aux_len'] for item in batch]
+                    if len(set(aux_lens)) >= min_unique:
+                        break
+                else:
+                    pass
+            batch = default_collate(self._pad_aux(batch))
             blist.append(batch)
-        rn = N % self.batch_size
-        return blist, chunk_list[-rn:] if rn else []
+            i += self.batch_size
+
+        rn = len(chunk_list) - i
+        return blist, chunk_list[i:] if rn else []
 
     def __iter__(self):
         chunk_list = []

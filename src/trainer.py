@@ -10,7 +10,7 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 from speechbrain.inference.speaker import EncoderClassifier
 
 from .loss import SISDRLoss
-from .utils import get_logger, cal_sisnr
+from .utils import get_logger, cal_sisnr, cal_sdr
 
 
 def load_obj(obj, device):
@@ -64,6 +64,8 @@ class ProgressReporter(object):
         self.loss = []
         self.unpro_metric = []
         self.pro_metric = []
+        self.unpro_sdr = []
+        self.pro_sdr = []
         self.timer = SimpleTimer()
 
     def add(self, loss, metric_dict=None):
@@ -71,6 +73,9 @@ class ProgressReporter(object):
         if metric_dict is not None:
             self.unpro_metric.append(metric_dict['unpro_metric'])
             self.pro_metric.append(metric_dict['pro_metric'])
+            if 'unpro_sdr' in metric_dict:
+                self.unpro_sdr.append(metric_dict['unpro_sdr'])
+                self.pro_sdr.append(metric_dict['pro_sdr'])
 
         N = len(self.loss)
         avg_loss = sum(self.loss[-self.period:]) / min(N, self.period)
@@ -78,9 +83,15 @@ class ProgressReporter(object):
             if metric_dict is not None:
                 avg_unpro_metric = sum(self.unpro_metric[-self.period:]) / min(N, self.period)
                 avg_pro_metric = sum(self.pro_metric[-self.period:]) / min(N, self.period)
-                self.logger.info(
-                    "Step {:d} (loss = {:+.4f}, unpro_metric = {:+.2f}, pro_metric = {:+.2f})"
-                    .format(N, avg_loss, avg_unpro_metric, avg_pro_metric))
+                if self.unpro_sdr:
+                    self.logger.info(
+                        "Step {:d} (loss={:+.4f}, SI-SDR unpro={:+.2f} pro={:+.2f}, SDR unpro={:+.2f} pro={:+.2f})"
+                        .format(N, avg_loss, avg_unpro_metric, avg_pro_metric,
+                                self.unpro_sdr[-1], self.pro_sdr[-1]))
+                else:
+                    self.logger.info(
+                        "Step {:d} (loss = {:+.4f})"
+                        .format(N, avg_loss))
             else:
                 self.logger.info("Step {:d} (loss = {:+.4f})".format(N, avg_loss))
 
@@ -94,17 +105,22 @@ class ProgressReporter(object):
                 metric_impr = [pro_metric - unpro_metric
                                for pro_metric, unpro_metric in zip(self.pro_metric, self.unpro_metric)]
                 sstr = ",".join(map(lambda f: "{:.2f}".format(f), metric_impr))
-                self.logger.info("Metric impr on {:d} batches: {}".format(N, sstr))
+                self.logger.info("SI-SDR impr on {:d} batches: {}".format(N, sstr))
 
+            if self.pro_sdr:
+                sdr_impr = [pro_sdr - unpro_sdr
+                            for pro_sdr, unpro_sdr in zip(self.pro_sdr, self.unpro_sdr)]
+                sstr = ",".join(map(lambda f: "{:.2f}".format(f), sdr_impr))
+                self.logger.info("SDR impr on {:d} batches: {}".format(N, sstr))
+
+        result = {"loss": sum(self.loss) / N,
+                  "batches": N,
+                  "cost": self.timer.elapsed()}
         if self.pro_metric:
-            return {"loss": sum(self.loss) / N,
-                    "metric_impr": sum(metric_impr) / N,
-                    "batches": N,
-                    "cost": self.timer.elapsed()}
-        else:
-            return {"loss": sum(self.loss) / N,
-                    "batches": N,
-                    "cost": self.timer.elapsed()}
+            result["metric_impr"] = sum(metric_impr) / N
+        if self.pro_sdr:
+            result["sdr_impr"] = sum(sdr_impr) / N
+        return result
 
 
 class Trainer(object):
@@ -165,6 +181,7 @@ class Trainer(object):
                                             )
 
         self.global_step = 0
+        self.last_sample_step = 0
         self.checkpoint_steps = configs.get('save', {}).get('checkpoint_steps', 5000)
 
         self.logger.info("Model summary:\n{}".format(net))
@@ -222,11 +239,14 @@ class Trainer(object):
         reporter = ProgressReporter(self.logger, period=1)
 
         for egs in data_loader:
+            batch_mix_wav = egs['mix'].numpy()
+            batch_clean_wav = egs['ref'].numpy()
+
             egs = load_obj(egs, self.device)
             egs = get_mix_stft(egs, self.configs_signal, self.device)
 
             self.optimizer.zero_grad()
-            _, loss = self.compute_loss(egs)
+            batch_est_wav, loss = self.compute_loss(egs)
             loss.backward()
             if self.clip_norm:
                 clip_grad_norm_(self.net.parameters(), self.clip_norm)
@@ -234,8 +254,28 @@ class Trainer(object):
             self.optimizer.step()
 
             self.global_step += 1
-            reporter.add(loss.item())
+
+            with torch.no_grad():
+                batch_est_wav_np = batch_est_wav.detach().cpu().numpy()
+                metric_dict = {}
+                unpro_sisnr_list, pro_sisnr_list = [], []
+                unpro_sdr_list, pro_sdr_list = [], []
+                for id in range(len(egs['valid_len'])):
+                    unpro_sisnr_list.append(cal_sisnr(id, batch_mix_wav, batch_clean_wav, egs['valid_len']))
+                    pro_sisnr_list.append(cal_sisnr(id, batch_est_wav_np, batch_clean_wav, egs['valid_len']))
+                    unpro_sdr_list.append(cal_sdr(id, batch_mix_wav, batch_clean_wav, egs['valid_len']))
+                    pro_sdr_list.append(cal_sdr(id, batch_est_wav_np, batch_clean_wav, egs['valid_len']))
+                metric_dict["unpro_metric"] = np.mean(np.asarray(unpro_sisnr_list))
+                metric_dict["pro_metric"] = np.mean(np.asarray(pro_sisnr_list))
+                metric_dict["unpro_sdr"] = np.mean(np.asarray(unpro_sdr_list))
+                metric_dict["pro_sdr"] = np.mean(np.asarray(pro_sdr_list))
+
+            reporter.add(loss.item(), metric_dict)
             self.save_checkpoint_step(self.global_step)
+
+            if self.global_step - self.last_sample_step >= 100:
+                self.last_sample_step = self.global_step
+                self.save_sample(self.dev_loader, self.global_step)
 
         return reporter.report()
 
@@ -256,18 +296,46 @@ class Trainer(object):
                 batch_est_wav = batch_est_wav.cpu().numpy()
 
                 metric_dict = {}
-                unpro_score_list, pro_score_list = [], []
+                unpro_sisnr_list, pro_sisnr_list = [], []
+                unpro_sdr_list, pro_sdr_list = [], []
                 for id in range(len(egs['valid_len'])):
-                    unpro_score_list.append(cal_sisnr(id, batch_mix_wav, batch_clean_wav, egs['valid_len']))
-                    pro_score_list.append(cal_sisnr(id, batch_est_wav, batch_clean_wav, egs['valid_len']))
-                unpro_score_list, pro_score_list = np.asarray(unpro_score_list), np.asarray(pro_score_list)
-                unpro_sisnr_mean_score, pro_sisnr_mean_score = np.mean(unpro_score_list), np.mean(pro_score_list)
-                metric_dict["unpro_metric"] = unpro_sisnr_mean_score
-                metric_dict["pro_metric"] = pro_sisnr_mean_score
+                    unpro_sisnr_list.append(cal_sisnr(id, batch_mix_wav, batch_clean_wav, egs['valid_len']))
+                    pro_sisnr_list.append(cal_sisnr(id, batch_est_wav, batch_clean_wav, egs['valid_len']))
+                    unpro_sdr_list.append(cal_sdr(id, batch_mix_wav, batch_clean_wav, egs['valid_len']))
+                    pro_sdr_list.append(cal_sdr(id, batch_est_wav, batch_clean_wav, egs['valid_len']))
+                metric_dict["unpro_metric"] = np.mean(np.asarray(unpro_sisnr_list))
+                metric_dict["pro_metric"] = np.mean(np.asarray(pro_sisnr_list))
+                metric_dict["unpro_sdr"] = np.mean(np.asarray(unpro_sdr_list))
+                metric_dict["pro_sdr"] = np.mean(np.asarray(pro_sdr_list))
 
                 reporter.add(loss.item(), metric_dict)
 
         return reporter.report(details=True)
+
+    def save_sample(self, data_loader, epoch):
+        self.net.eval()
+        with torch.no_grad():
+            for egs in data_loader:
+                batch_mix_wav = egs['mix'].cpu().numpy()
+                batch_clean_wav = egs['ref'].cpu().numpy()
+
+                egs = load_obj(egs, self.device)
+                egs = get_mix_stft(egs, self.configs_signal, self.device)
+                batch_est_wav, _ = self.compute_loss(egs)
+                batch_est_wav = batch_est_wav.cpu().numpy()
+
+                sample_dir = os.path.join(self.checkpoint, 'samples', 'epoch_{:04d}'.format(epoch))
+                os.makedirs(sample_dir, exist_ok=True)
+
+                sr = self.configs_signal['sr']
+                valid_len = egs['valid_len'][0]
+                torchaudio.save(os.path.join(sample_dir, 'mix.wav'),
+                                torch.from_numpy(batch_mix_wav[0, :valid_len]), sr)
+                torchaudio.save(os.path.join(sample_dir, 'target.wav'),
+                                torch.from_numpy(batch_clean_wav[0, :valid_len]), sr)
+                torchaudio.save(os.path.join(sample_dir, 'estimation.wav'),
+                                torch.from_numpy(batch_est_wav[0, :valid_len]), sr)
+                break
 
     def run(self, train_loader, dev_loader, num_epochs=50):
         with torch.cuda.device(self.gpuid[0]):
@@ -278,6 +346,7 @@ class Trainer(object):
             no_impr = 0
 
             train_epoch, val_epoch, metric_impr_epoch = [], [], []
+            self.dev_loader = dev_loader
             self.logger.info("START FROM EPOCH {:d}, skipping initial eval".format(self.cur_epoch))
             while self.cur_epoch < num_epochs:
                 self.cur_epoch += 1
@@ -290,7 +359,9 @@ class Trainer(object):
 
                 cv = self.eval(dev_loader)
                 stats["cv"] = "dev = {:+.4f}({:.2f}m/{:d})".format(cv["loss"], cv["cost"], cv["batches"])
-                stats["metric"] = "metric impr = {:+.2f}".format(cv["metric_impr"])
+                stats["metric"] = "SI-SDR impr = {:+.2f}".format(cv["metric_impr"])
+                if 'sdr_impr' in cv:
+                    stats["metric"] += ", SDR impr = {:+.2f}".format(cv["sdr_impr"])
                 val_epoch.append(cv["loss"])
                 metric_impr_epoch.append(cv["metric_impr"])
 
@@ -357,3 +428,33 @@ class SiSnrTrainer(Trainer):
         SISDR_loss = self.SISDR_loss(batch_est_wav, egs["ref"], egs['valid_len'])
 
         return batch_est_wav, SISDR_loss
+
+    def save_sample(self, data_loader, step):
+        was_train = self.net.training
+        self.net.eval()
+        with torch.no_grad():
+            for egs in data_loader:
+                batch_mix_wav = egs['mix'].cpu().numpy()
+                batch_clean_wav = egs['ref'].cpu().numpy()
+
+                egs = load_obj(egs, self.device)
+                egs = get_mix_stft(egs, self.configs_signal, self.device)
+                batch_est_wav, _ = self.compute_loss(egs)
+                batch_est_wav = batch_est_wav.cpu().numpy()
+
+                sample_dir = os.path.join(self.checkpoint, 'samples', 'step_{:06d}'.format(step))
+                os.makedirs(sample_dir, exist_ok=True)
+
+                sr = self.configs_signal['sr']
+                valid_len = egs['valid_len'][0]
+                torchaudio.save(os.path.join(sample_dir, 'mix.wav'),
+                                torch.from_numpy(batch_mix_wav[0, :valid_len]), sr)
+                torchaudio.save(os.path.join(sample_dir, 'target.wav'),
+                                torch.from_numpy(batch_clean_wav[0, :valid_len]), sr)
+                torchaudio.save(os.path.join(sample_dir, 'estimation.wav'),
+                                torch.from_numpy(batch_est_wav[0, :valid_len]), sr)
+                break
+
+        if was_train:
+            self.net.train()
+        self.logger.info("Audio samples saved to {}".format(sample_dir))

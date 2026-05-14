@@ -2,7 +2,7 @@
 resume_filename = ""
 
 [path.train]
-data_dirs = ["LibriSpeech/train-clean-100"]
+data_dirs = ["LibriSpeech/train-clean-100", "LibriSpeech/train-clean-360"]
 
 [path.val]
 data_dirs = ["LibriSpeech/dev-clean"]
@@ -38,7 +38,7 @@ early_stop_freq = 6
 rel_epsilon = 1e-4
 
 [dataloader]
-num_workers = 0
+num_workers = 4
 pin_memory = true
 batch_size = 4
 
@@ -54,5 +54,5 @@ activation = "prelu"
 eps = 1e-5
 
 [save]
-save_filename = "checkpoints/the-first-libri"
-checkpoint_steps = 5000
+save_filename = "checkpoints/the-second-libri"
+checkpoint_steps = 1000
