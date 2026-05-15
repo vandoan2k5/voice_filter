@@ -152,7 +152,7 @@ class DataLoader(object):
                                       least=chunk_size // 2)
 
         self.eg_loader = torch.utils.data.DataLoader(dataset,
-                                                     batch_size=batch_size // 2,
+                                                     batch_size=batch_size,
                                                      num_workers=num_workers,
                                                      shuffle=train,
                                                      pin_memory=pin_memory,

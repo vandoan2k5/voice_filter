@@ -79,6 +79,17 @@ def cal_sisnr(id, esti_utts, clean_utts, real_length):
     return sisnr_score
 
 
+def sdr(est, label):
+    label_power = np.sum(label ** 2.0) + 1e-8
+    res_power = np.sum((est - label) ** 2.0) + 1e-8
+    return 10 * np.log10(label_power / res_power)
+
+
+def cal_sdr(id, esti_utts, clean_utts, real_length):
+    clean_utt, esti_utt = clean_utts[id, :real_length[id]], esti_utts[id, :real_length[id]]
+    return sdr(esti_utt, clean_utt)
+
+
 def get_layer(l_name,
               library=torch.nn):
     all_torch_layers = [x for x in dir(torch.nn)]
