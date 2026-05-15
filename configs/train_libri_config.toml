@@ -1,5 +1,5 @@
 [path]
-resume_filename = ""
+resume_filename = "checkpoints/the-second-libri/checkpoint/step_2000.pt.tar"
 
 [path.train]
 data_dirs = ["LibriSpeech/train-clean-100", "LibriSpeech/train-clean-360"]
@@ -11,11 +11,11 @@ data_dirs = ["LibriSpeech/dev-clean"]
 gpu_ids = [0, 1]
 
 [signal]
-sr = 16000
-chunk_length = 3
+sr = 8000
+chunk_length = 4
 win_size = 0.032
 win_shift = 0.008
-fft_num = 512
+fft_num = 256
 beta = 1.0
 
 [loss_function]
@@ -40,7 +40,7 @@ rel_epsilon = 1e-4
 [dataloader]
 num_workers = 4
 pin_memory = true
-batch_size = 4
+batch_size = 5
 
 [net]
 emb_dim = 64

@@ -29,8 +29,7 @@ class pTFGridNet(nn.Module):
                                   nn.GroupNorm(1, emb_dim, eps=eps))
 
         # Speaker Embedding Projection
-        self.spk_proj = nn.Sequential(nn.Linear(spk_emb_dim, emb_dim)
-                                      )
+        self.spk_proj = nn.Linear(spk_emb_dim, emb_dim)
 
         # Speaker Extractor
         self.fusion_blocks = nn.ModuleList([FusionModule(emb_dim) for _ in range(n_layers)])

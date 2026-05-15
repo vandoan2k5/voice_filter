@@ -106,7 +106,7 @@ class LibriSpeechDataset:
         interf = interf[:min_len]
         dur = min_len
 
-        snr = random.uniform(-5, 5)
+        snr = random.uniform(0, 5)
         ref_power = np.mean(ref ** 2) + 1e-8
         interf_power = np.mean(interf ** 2) + 1e-8
         scale = np.sqrt(ref_power / (interf_power * (10 ** (snr / 10)) + 1e-8))
